@@ -1,0 +1,124 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+
+  QueueTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: taskId
+          AttributeType: S
+        - AttributeName: taskStatus
+          AttributeType: S
+        - AttributeName: taskCreated
+          AttributeType: N
+      KeySchema:
+        - AttributeName: taskId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: task-status-created-index
+          KeySchema:
+            - AttributeName: taskStatus
+              KeyType: HASH
+            - AttributeName: taskCreated
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: KEYS_ONLY
+      BillingMode: PAY_PER_REQUEST
+
+  TriggerTopic:
+    Type: AWS::SNS::Topic
+
+  ProcessTasksTopic:
+    Type: AWS::SNS::Topic
+
+  TriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: trigger.handler
+      Runtime: nodejs14.x
+      Timeout: 5
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 60
+        MaximumRetryAttempts: 0
+      Events:
+        DynamoDBTriggerEvent:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt QueueTable.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 10
+            MaximumRecordAgeInSeconds: 120
+            MaximumRetryAttempts: 0
+        TriggerTopicEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref TriggerTopic
+      Environment:
+        Variables:
+          PROCESS_TASKS_TOPIC_ARN: !Ref ProcessTasksTopic
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaDynamoDBExecutionRole
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt ProcessTasksTopic.TopicName
+      Tracing: Active
+
+  ProcessTasksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: process_tasks.handler
+      Runtime: nodejs14.x
+      Timeout: 120
+      ReservedConcurrentExecutions: 1
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 60
+        MaximumRetryAttempts: 1
+      Events:
+        ProcessTasksTopicEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref ProcessTasksTopic
+      Environment:
+        Variables:
+          QUEUE_TABLE: !Ref QueueTable
+          TRIGGER_TOPIC_ARN: !Ref TriggerTopic
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QueueTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt TriggerTopic.TopicName
+      Tracing: Active
+
+  CreateTasksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: create_tasks.handler
+      Runtime: nodejs14.x
+      Timeout: 120
+      ReservedConcurrentExecutions: 1
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 60
+        MaximumRetryAttempts: 0
+      Environment:
+        Variables:
+          QUEUE_TABLE: !Ref QueueTable
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - DynamoDBCrudPolicy:
+            TableName: !Ref QueueTable
+      Tracing: Active
