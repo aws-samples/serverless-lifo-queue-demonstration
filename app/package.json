@@ -1,0 +1,13 @@
+{
+  "name": "serverless-lifo-queue-demonstration-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.16.0",
+    "@aws-sdk/client-lambda": "^3.16.0",
+    "@aws-sdk/client-sns": "^3.16.0",
+    "aws-xray-sdk": "^3.3.3",
+    "luxon": "^1.26.0",
+    "serialize-error": "^8.1.0",
+    "uuid": "^8.3.2"
+  }
+}
