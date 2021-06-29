@@ -9,7 +9,7 @@ written in JavaScript.
 We created the application as a companion to an AWS Compute Blog post (see link below). The post also 
 describes a use case where this approach is useful.   
 
-**TODO**: Blog post link here 
+https://aws.amazon.com/blogs/compute/implementing-a-lifo-task-queue-using-aws-lambda-and-amazon-dynamodb/
 
 The demonstration supports use cases where a system must prioritise newer tasks over older 
 tasks, and where older tasks can be deleted under insurmountable high load (via load 
